@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c \"import json; f=open\\('agentic_ai_langchain.ipynb'\\); d=json.load\\(f\\); cells=d['cells'][:30]; [print\\('---CELL---', c.get\\('cell_type',''\\), '\\\\\\\\n', ''.join\\(c.get\\('source',[]\\)\\)\\) for c in cells]\")",
+      "Bash(python3 -c ':*)",
+      "Bash(mkdir:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv run:*)",
+      "Bash(npm install:*)",
+      "Bash(uv pip:*)"
+    ]
+  }
+}

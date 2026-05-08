@@ -1,0 +1,128 @@
+{
+  "_description": "Ground truth labels for MediShield test dataset. Labels are based on filename patterns and expected document types.",
+  "_categories": ["Patient Bills", "Claim Forms", "KYC Documents", "Medical Reports", "Prescriptions", "Unknown"],
+  "_decisions": ["approve", "reject", "escalate"],
+
+  "labels": [
+    {
+      "filename": "bill_innovh_01.png",
+      "expected_doc_type": "Patient Bills",
+      "expected_decision": "approve",
+      "notes": "Hospital bill - InnovH series"
+    },
+    {
+      "filename": "bill_innovh_02.png",
+      "expected_doc_type": "Patient Bills",
+      "expected_decision": "approve",
+      "notes": "Hospital bill - InnovH series"
+    },
+    {
+      "filename": "bill_innovh_03.png",
+      "expected_doc_type": "Patient Bills",
+      "expected_decision": "approve",
+      "notes": "Hospital bill - InnovH series"
+    },
+    {
+      "filename": "bill_innovh_04.png",
+      "expected_doc_type": "Patient Bills",
+      "expected_decision": "approve",
+      "notes": "Hospital bill - InnovH series"
+    },
+    {
+      "filename": "bill_innovh_05.png",
+      "expected_doc_type": "Patient Bills",
+      "expected_decision": "approve",
+      "notes": "Hospital bill - InnovH series"
+    },
+    {
+      "filename": "bill_innovh_06.png",
+      "expected_doc_type": "Patient Bills",
+      "expected_decision": "approve",
+      "notes": "Hospital bill - InnovH series"
+    },
+    {
+      "filename": "bill_innovh_07.png",
+      "expected_doc_type": "Patient Bills",
+      "expected_decision": "approve",
+      "notes": "Hospital bill - InnovH series"
+    },
+    {
+      "filename": "bill_innovh_08.png",
+      "expected_doc_type": "Patient Bills",
+      "expected_decision": "approve",
+      "notes": "Hospital bill - InnovH series"
+    },
+    {
+      "filename": "bill_innovh_09.png",
+      "expected_doc_type": "Patient Bills",
+      "expected_decision": "approve",
+      "notes": "Hospital bill - InnovH series"
+    },
+    {
+      "filename": "bill_innovh_10.png",
+      "expected_doc_type": "Patient Bills",
+      "expected_decision": "approve",
+      "notes": "Hospital bill - InnovH series"
+    },
+    {
+      "filename": "03ac1d4117.png",
+      "expected_doc_type": "Unknown",
+      "expected_decision": "escalate",
+      "notes": "Needs manual classification verification"
+    },
+    {
+      "filename": "05a5de87a2.png",
+      "expected_doc_type": "Unknown",
+      "expected_decision": "escalate",
+      "notes": "Needs manual classification verification"
+    },
+    {
+      "filename": "0c205798ca.png",
+      "expected_doc_type": "Unknown",
+      "expected_decision": "escalate",
+      "notes": "Needs manual classification verification"
+    },
+    {
+      "filename": "139bb4f7b2.png",
+      "expected_doc_type": "Unknown",
+      "expected_decision": "escalate",
+      "notes": "Needs manual classification verification"
+    },
+    {
+      "filename": "1943d55a29.png",
+      "expected_doc_type": "Unknown",
+      "expected_decision": "escalate",
+      "notes": "Needs manual classification verification"
+    },
+    {
+      "filename": "1b9d9c79d7.png",
+      "expected_doc_type": "Unknown",
+      "expected_decision": "escalate",
+      "notes": "Needs manual classification verification"
+    },
+    {
+      "filename": "1f27fb123a.png",
+      "expected_doc_type": "Unknown",
+      "expected_decision": "escalate",
+      "notes": "Needs manual classification verification"
+    },
+    {
+      "filename": "2561b8be1b.png",
+      "expected_doc_type": "Unknown",
+      "expected_decision": "escalate",
+      "notes": "Needs manual classification verification"
+    },
+    {
+      "filename": "scanned_012389984.png",
+      "expected_doc_type": "Unknown",
+      "expected_decision": "escalate",
+      "notes": "Scanned document - type TBD"
+    },
+    {
+      "filename": "31d1b528ee.png",
+      "expected_doc_type": "Unknown",
+      "expected_decision": "escalate",
+      "notes": "Needs manual classification verification"
+    }
+  ]
+}

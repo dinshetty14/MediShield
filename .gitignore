@@ -1,0 +1,50 @@
+# Environment
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# SQLite
+*.db
+*.sqlite3
+
+# Qdrant local storage
+qdrant_storage/
+
+# Node.js
+node_modules/
+.next/
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Evaluation results (keep template, ignore generated)
+evaluation/results/*.json
+evaluation/results/*.csv
+!evaluation/results/.gitkeep
+
+#reference_only/*.*
+
+# Misc
+*.log
+
+indexing qdrant_data/.lock
+qdrant_data/.lock

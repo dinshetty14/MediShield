@@ -1,0 +1,62 @@
+[project]
+name = "medishield"
+version = "0.1.0"
+description = "AI-Powered Document Intake System for Health Insurance Claims"
+requires-python = ">=3.11"
+dependencies = [
+    # Web framework
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.0",
+    "python-multipart>=0.0.9",
+
+    # Environment & Config
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.3.0",
+
+    # LLM & Agents
+    "langgraph>=0.2.0",
+    "langchain>=0.2.0",
+    "langchain-anthropic>=0.1.0",
+    "langchain-google-genai>=1.0.0",
+    "langchain-community>=0.2.0",
+
+    # Vector Store & RAG
+    "chromadb>=0.5.0",
+    "docling>=2.0.0",
+
+    # Image processing
+    "pillow>=10.0.0",
+
+    # HTTP client
+    "httpx>=0.27.0",
+
+    # Database
+    "sqlalchemy>=2.0.0",
+    "aiosqlite>=0.20.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
