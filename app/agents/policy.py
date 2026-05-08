@@ -79,6 +79,20 @@ class PolicyAgent(BaseAgent):
             diagnosis = claims_output.diagnosis
             claim_amount = claims_output.claim_amount
 
+        # If no diagnosis codes available (e.g., patient bills without ICD/CPT),
+        # default to covered since we can't verify against policy
+        if not icd_codes and not cpt_codes and not diagnosis:
+            elapsed = time.perf_counter() - start_time
+            print(f"  [Policy] No diagnosis codes - defaulting to covered=True (likely a bill)")
+            return PolicyOutput(
+                covered=True,
+                coverage_percentage=100.0,
+                matching_clauses=[],
+                exclusions=[],
+                confidence=0.85,
+                processing_time_seconds=elapsed,
+            )
+
         try:
             # Retrieve relevant policy clauses
             clauses = self._retriever.retrieve_for_codes(

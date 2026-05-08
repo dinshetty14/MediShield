@@ -14,6 +14,8 @@ from app.config import get_settings
 class BaseAgent(ABC):
     """Base class for all agents with common LLM functionality."""
 
+    _initialized = False  # Class-level flag to print only once
+
     def __init__(
         self,
         model: str | None = None,
@@ -33,7 +35,11 @@ class BaseAgent(ABC):
 
         self.model_name = model or "gemini-flash-latest"
         self._client = genai.Client(api_key=gemini_key)
-        print(f"  [BaseAgent] Using Gemini: {self.model_name} (key: {gemini_key[:8]}...{gemini_key[-4:]})")
+
+        # Print only once
+        if not BaseAgent._initialized:
+            print(f"  [LLM] Using Gemini: {self.model_name}")
+            BaseAgent._initialized = True
 
     @property
     def name(self) -> str:
