@@ -18,8 +18,12 @@ env/
 *.db
 *.sqlite3
 
-# Qdrant local storage
+# Vector databases
+chroma_db/
 qdrant_storage/
+
+# Uploaded files (runtime)
+uploads/
 
 # Node.js
 node_modules/
@@ -41,7 +45,8 @@ evaluation/results/*.json
 evaluation/results/*.csv
 !evaluation/results/.gitkeep
 
-#reference_only/*.*
+# Reference implementation (provided as examples)
+reference_only/
 
 # Misc
 *.log
