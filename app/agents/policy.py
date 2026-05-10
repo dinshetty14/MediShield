@@ -199,3 +199,17 @@ class PolicyAgent(BaseAgent):
             Number of chunks indexed
         """
         return self._retriever.index_policies(policies_dir)
+
+    def ingest_policy_pdf(self, pdf_path: str) -> int:
+        """Ingest a single policy PDF into ChromaDB via Docling.
+
+        This is called when a Policy Document is uploaded through the pipeline.
+
+        Args:
+            pdf_path: Path to the uploaded PDF file
+
+        Returns:
+            Number of chunks indexed
+        """
+        print(f"  [Policy] Ingesting policy PDF: {pdf_path}")
+        return self._retriever.index_single_pdf(pdf_path)

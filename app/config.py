@@ -46,6 +46,7 @@ class Settings(BaseSettings):
         "KYC Documents",
         "Medical Reports",
         "Prescriptions",
+        "Policy Documents",
         "Unknown",
     ]
 
@@ -56,6 +57,7 @@ class Settings(BaseSettings):
         "KYC Documents": "verification_queue",
         "Medical Reports": "medical_review_queue",
         "Prescriptions": "medical_review_queue",
+        "Policy Documents": "policy_ingestion_queue",
         "Unknown": "manual_review_queue",
     }
 

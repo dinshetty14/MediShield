@@ -1,236 +1,215 @@
-"""Fraud Detection Agent - analyzes claims for fraud indicators."""
+"""Fraud Detection Agent - rule-based checks with duplicate detection."""
 
 import time
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from statistics import mean
 
 from app.models.agent_outputs import ClaimsOutput, FraudOutput
 
-from .base import BaseAgent
 
-
-# Simulated claim history database
-# In production, this would query a real database
+# Simulated patient claim history database
 _CLAIM_HISTORY: dict[str, list[dict]] = {}
 
-
-FRAUD_ANALYSIS_PROMPT = """You are a fraud detection specialist for MediShield Insurance.
-
-Analyze the following claim and patient history for potential fraud indicators.
-
-CURRENT CLAIM:
-{current_claim}
-
-PATIENT CLAIM HISTORY (last 12 months):
-{claim_history}
-
-Check for the following fraud patterns:
-1. Duplicate Claims: Same procedure/diagnosis submitted multiple times
-2. Frequency Anomalies: Unusually high number of claims in short period
-3. Provider Patterns: Suspicious billing patterns or known fraudulent providers
-4. Amount Anomalies: Claim amounts significantly higher than typical
-5. Date Manipulation: Service dates that don't align with treatment patterns
-6. Unbundling: Related procedures billed separately to inflate costs
-
-Respond with a JSON object:
-```json
-{{
-  "fraud_score": <float 0.0-1.0, higher = more suspicious>,
-  "risk_level": "<LOW, MEDIUM, or HIGH>",
-  "anomalies": ["<list of detected anomalies>"],
-  "duplicate_claim_detected": <true or false>,
-  "frequency_anomaly": <true or false>,
-  "provider_pattern_flag": <true or false>,
-  "reasoning": "<explanation of fraud assessment>",
-  "confidence": <float between 0 and 1>
-}}
-```
-
-Scoring Guide:
-- 0.0-0.3: LOW risk - typical claim patterns
-- 0.3-0.6: MEDIUM risk - some anomalies detected
-- 0.6-1.0: HIGH risk - significant fraud indicators
-"""
+# Track recent claims by amount for duplicate detection (amount -> list of timestamps)
+_RECENT_CLAIMS: dict[float, list[datetime]] = {}
 
 
-class FraudAgent(BaseAgent):
-    """Agent that detects potential fraud in claims."""
+# Fraud detection thresholds
+DUPLICATE_WINDOW_DAYS = 7
+DUPLICATE_WINDOW_HOURS = 24  # Flag same amount within 24 hours as potential duplicate
+FREQUENCY_WINDOW_DAYS = 30
+FREQUENCY_THRESHOLD = 5
+AMOUNT_MULTIPLIER = 2.0  # Flag if > 2x average
+
+
+class FraudAgent:
+    """Rule-based fraud detection agent with duplicate detection."""
 
     def process(
         self,
         claims_output: ClaimsOutput | None = None,
         patient_id: str | None = None,
-        provider_name: str | None = None,
     ) -> FraudOutput:
-        """Analyze a claim for fraud indicators.
+        """Analyze claim for fraud using rule-based checks.
+
+        Checks:
+        1. Duplicate submission (same amount within 24 hours)
+        2. Patient history duplicate (same amount within 7 days)
+        3. Frequency anomaly (> 5 claims in 30 days)
+        4. Amount anomaly (> 2x historical average)
 
         Args:
             claims_output: Output from ClaimsAgent
             patient_id: Patient identifier for history lookup
-            provider_name: Provider name for pattern checking
 
         Returns:
-            FraudOutput with fraud score and anomalies
+            FraudOutput with fraud score and detected anomalies
         """
         start_time = time.perf_counter()
 
-        try:
-            # Format current claim info
-            current_claim = self._format_current_claim(claims_output)
+        anomalies = []
+        fraud_score = 0.0
 
-            # Get patient claim history
-            claim_history = self._get_claim_history(patient_id)
-            history_str = self._format_claim_history(claim_history)
+        # Get claim details
+        claim_amount = claims_output.claim_amount if claims_output else None
+        service_date = claims_output.service_date if claims_output else date.today()
+        icd_codes = claims_output.icd_10_codes if claims_output else []
 
-            # Run rule-based checks first
-            rule_based_flags = self._run_rule_based_checks(
-                claims_output, claim_history
-            )
+        # Get patient history
+        history = self._get_history(patient_id)
 
-            # Call LLM for comprehensive analysis
-            prompt = FRAUD_ANALYSIS_PROMPT.format(
-                current_claim=current_claim,
-                claim_history=history_str,
-            )
+        # Check 1: Quick duplicate detection (same amount within 24 hours)
+        is_quick_duplicate = False
+        if claim_amount:
+            is_quick_duplicate = self._check_quick_duplicate(claim_amount)
 
-            response = self._call_with_retry(self._call_llm, prompt)
-            result = self._parse_json_response(response)
-            elapsed = time.perf_counter() - start_time
+        if is_quick_duplicate:
+            anomalies.append("Duplicate claim detected (same amount submitted recently)")
+            fraud_score += 0.5  # High score to trigger escalation
 
-            # Combine LLM analysis with rule-based checks
-            fraud_score = float(result.get("fraud_score", 0.0))
-            anomalies = result.get("anomalies", [])
+        # Check 2: Patient history duplicate (same amount within 7 days)
+        elif claim_amount and self._check_duplicate(claim_amount, service_date, icd_codes, history):
+            anomalies.append("Potential duplicate claim detected")
+            fraud_score += 0.4
 
-            # Add rule-based anomalies
-            if rule_based_flags["duplicate"]:
-                fraud_score = max(fraud_score, 0.7)
-                if "Duplicate claim detected" not in anomalies:
-                    anomalies.append("Duplicate claim detected (rule-based)")
+        # Check 3: Frequency anomaly
+        if self._check_frequency(history):
+            anomalies.append(f"High claim frequency (>{FREQUENCY_THRESHOLD} in {FREQUENCY_WINDOW_DAYS} days)")
+            fraud_score += 0.3
 
-            if rule_based_flags["frequency"]:
-                fraud_score = max(fraud_score, 0.5)
-                if "High claim frequency" not in str(anomalies):
-                    anomalies.append("High claim frequency detected (rule-based)")
+        # Check 4: Amount anomaly
+        if claim_amount and self._check_amount_anomaly(claim_amount, history):
+            anomalies.append(f"Claim amount unusually high (>{AMOUNT_MULTIPLIER}x average)")
+            fraud_score += 0.2
 
-            # Determine risk level
-            if fraud_score >= 0.6:
-                risk_level = "HIGH"
-            elif fraud_score >= 0.3:
-                risk_level = "MEDIUM"
-            else:
-                risk_level = "LOW"
+        # Determine risk level
+        if fraud_score >= 0.5:
+            risk_level = "HIGH"
+        elif fraud_score >= 0.3:
+            risk_level = "MEDIUM"
+        else:
+            risk_level = "LOW"
 
-            output = FraudOutput(
-                fraud_score=min(max(fraud_score, 0.0), 1.0),
-                risk_level=risk_level,
-                anomalies=anomalies,
-                duplicate_claim_detected=result.get("duplicate_claim_detected", False) or rule_based_flags["duplicate"],
-                frequency_anomaly=result.get("frequency_anomaly", False) or rule_based_flags["frequency"],
-                provider_pattern_flag=result.get("provider_pattern_flag", False),
-                confidence=min(max(float(result.get("confidence", 0.7)), 0.0), 1.0),
-                processing_time_seconds=elapsed,
-            )
-            print(f"  [Fraud] Result: score={output.fraud_score}, risk={output.risk_level}, confidence={output.confidence}")
-            return output
+        # Record this claim for future duplicate detection
+        if claim_amount:
+            self._record_claim(claim_amount)
 
-        except Exception as e:
-            elapsed = time.perf_counter() - start_time
-            print(f"  [Fraud] ERROR: {type(e).__name__}: {e}")
-            # On error, return conservative estimate (low risk)
-            return FraudOutput(
-                fraud_score=0.1,
-                risk_level="LOW",
-                anomalies=[],
-                confidence=0.7,  # Higher confidence to not trigger escalation
-                processing_time_seconds=elapsed,
-                errors=[str(e)],
-            )
+        elapsed = time.perf_counter() - start_time
+        print(f"  [Fraud] Result: score={fraud_score:.2f}, risk={risk_level}, anomalies={len(anomalies)}")
 
-    def _format_current_claim(self, claims_output: ClaimsOutput | None) -> str:
-        """Format current claim for the prompt."""
-        if not claims_output:
-            return "No claim details provided"
+        return FraudOutput(
+            fraud_score=min(fraud_score, 1.0),
+            risk_level=risk_level,
+            anomalies=anomalies,
+            duplicate_claim_detected=any("duplicate" in a.lower() for a in anomalies),
+            frequency_anomaly=any("frequency" in a.lower() for a in anomalies),
+            provider_pattern_flag=False,
+            confidence=0.9,  # High confidence for rule-based
+            processing_time_seconds=elapsed,
+        )
 
-        parts = []
-        if claims_output.claim_amount:
-            parts.append(f"Amount: {claims_output.currency} {claims_output.claim_amount}")
-        if claims_output.diagnosis:
-            parts.append(f"Diagnosis: {claims_output.diagnosis}")
-        if claims_output.icd_10_codes:
-            parts.append(f"ICD-10 Codes: {', '.join(claims_output.icd_10_codes)}")
-        if claims_output.cpt_codes:
-            parts.append(f"CPT Codes: {', '.join(claims_output.cpt_codes)}")
-        if claims_output.provider_name:
-            parts.append(f"Provider: {claims_output.provider_name}")
-        if claims_output.service_date:
-            parts.append(f"Service Date: {claims_output.service_date}")
-
-        return "\n".join(parts) if parts else "Minimal claim details"
-
-    def _get_claim_history(self, patient_id: str | None) -> list[dict]:
-        """Get patient claim history from database."""
+    def _get_history(self, patient_id: str | None) -> list[dict]:
+        """Get patient claim history."""
         if not patient_id:
             return []
-
-        # In production, this would query a real database
         return _CLAIM_HISTORY.get(patient_id, [])
 
-    def _format_claim_history(self, history: list[dict]) -> str:
-        """Format claim history for the prompt."""
-        if not history:
-            return "No prior claims in the last 12 months"
+    def _check_quick_duplicate(self, amount: float) -> bool:
+        """Check if same amount was submitted recently (within 24 hours)."""
+        print(f"  [Fraud] Checking duplicate for amount={amount}")
+        print(f"  [Fraud] Recent claims cache: {list(_RECENT_CLAIMS.keys())}")
 
-        parts = []
-        for i, claim in enumerate(history[-10:], 1):  # Last 10 claims
-            parts.append(
-                f"{i}. Date: {claim.get('date', 'N/A')}, "
-                f"Amount: {claim.get('amount', 'N/A')}, "
-                f"Diagnosis: {claim.get('diagnosis', 'N/A')}"
-            )
+        if amount not in _RECENT_CLAIMS:
+            print(f"  [Fraud] Amount {amount} not in cache")
+            return False
 
-        return "\n".join(parts)
+        now = datetime.now()
+        window = timedelta(hours=DUPLICATE_WINDOW_HOURS)
 
-    def _run_rule_based_checks(
+        # Check if any recent claim with same amount
+        for claim_time in _RECENT_CLAIMS[amount]:
+            time_diff = now - claim_time
+            print(f"  [Fraud] Found previous claim at {claim_time}, diff={time_diff}")
+            if time_diff < window:
+                print(f"  [Fraud] DUPLICATE DETECTED!")
+                return True
+
+        return False
+
+    def _record_claim(self, amount: float) -> None:
+        """Record a claim amount for duplicate detection."""
+        now = datetime.now()
+
+        if amount not in _RECENT_CLAIMS:
+            _RECENT_CLAIMS[amount] = []
+
+        _RECENT_CLAIMS[amount].append(now)
+        print(f"  [Fraud] Recorded claim amount={amount} at {now}")
+
+        # Clean up old entries (older than 24 hours)
+        cutoff = now - timedelta(hours=DUPLICATE_WINDOW_HOURS)
+        _RECENT_CLAIMS[amount] = [t for t in _RECENT_CLAIMS[amount] if t > cutoff]
+
+    def _check_duplicate(
         self,
-        claims_output: ClaimsOutput | None,
+        amount: float,
+        service_date: date | None,
+        icd_codes: list[str],
         history: list[dict],
-    ) -> dict[str, bool]:
-        """Run rule-based fraud checks."""
-        flags = {
-            "duplicate": False,
-            "frequency": False,
-        }
+    ) -> bool:
+        """Check for duplicate claim submission in patient history."""
+        if not history:
+            return False
 
-        if not claims_output:
-            return flags
+        service_date = service_date or date.today()
+        window_start = service_date - timedelta(days=DUPLICATE_WINDOW_DAYS)
 
-        # Check for duplicates (same ICD codes within 7 days)
-        if claims_output.icd_10_codes and history:
-            current_codes = set(claims_output.icd_10_codes)
-            for prev_claim in history:
-                prev_codes = set(prev_claim.get("icd_codes", []))
-                if current_codes & prev_codes:  # Intersection
-                    prev_date = prev_claim.get("date")
-                    if prev_date and claims_output.service_date:
-                        days_diff = abs((claims_output.service_date - prev_date).days)
-                        if days_diff < 7:
-                            flags["duplicate"] = True
-                            break
+        for prev in history:
+            prev_date = prev.get("date")
+            prev_amount = prev.get("amount")
+            prev_codes = set(prev.get("icd_codes", []))
 
-        # Check frequency (more than 5 claims in 30 days)
-        if history:
-            thirty_days_ago = date.today() - timedelta(days=30)
-            recent_claims = [
-                c for c in history
-                if c.get("date") and c["date"] >= thirty_days_ago
-            ]
-            if len(recent_claims) > 5:
-                flags["frequency"] = True
+            if not prev_date or not prev_amount:
+                continue
 
-        return flags
+            # Check if within window
+            if prev_date < window_start:
+                continue
+
+            # Check for similar claim
+            amount_match = abs(prev_amount - amount) < 1.0  # Within 1 unit
+            code_overlap = bool(set(icd_codes) & prev_codes) if icd_codes and prev_codes else False
+
+            if amount_match or code_overlap:
+                return True
+
+        return False
+
+    def _check_frequency(self, history: list[dict]) -> bool:
+        """Check for abnormal claim frequency."""
+        if not history:
+            return False
+
+        window_start = date.today() - timedelta(days=FREQUENCY_WINDOW_DAYS)
+        recent_claims = [h for h in history if h.get("date") and h["date"] >= window_start]
+
+        return len(recent_claims) > FREQUENCY_THRESHOLD
+
+    def _check_amount_anomaly(self, amount: float, history: list[dict]) -> bool:
+        """Check if amount is abnormally high compared to history."""
+        if not history or len(history) < 3:
+            return False  # Not enough history to compare
+
+        amounts = [h.get("amount") for h in history if h.get("amount")]
+        if not amounts:
+            return False
+
+        avg = mean(amounts)
+        return amount > (avg * AMOUNT_MULTIPLIER)
 
     @staticmethod
     def add_to_history(patient_id: str, claim_data: dict) -> None:
-        """Add a claim to patient history (for testing/simulation)."""
+        """Add a claim to patient history (for testing)."""
         if patient_id not in _CLAIM_HISTORY:
             _CLAIM_HISTORY[patient_id] = []
         _CLAIM_HISTORY[patient_id].append(claim_data)
@@ -242,3 +221,8 @@ class FraudAgent(BaseAgent):
             _CLAIM_HISTORY.pop(patient_id, None)
         else:
             _CLAIM_HISTORY.clear()
+
+    @staticmethod
+    def clear_recent_claims() -> None:
+        """Clear recent claims cache (for testing)."""
+        _RECENT_CLAIMS.clear()

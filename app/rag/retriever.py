@@ -8,7 +8,7 @@ from chromadb.config import Settings as ChromaSettings
 from app.config import get_settings
 from app.models.agent_outputs import PolicyClause
 
-from .ingestion import ingest_all_policies
+from .ingestion import ingest_all_policies, ingest_policy_pdf
 
 
 class PolicyRetriever:
@@ -55,6 +55,35 @@ class PolicyRetriever:
             metadatas=metadatas,
         )
 
+        return len(chunks)
+
+    def index_single_pdf(self, pdf_path: str | Path) -> int:
+        """Index a single policy PDF via Docling.
+
+        Args:
+            pdf_path: Path to the policy PDF file
+
+        Returns:
+            Number of chunks indexed
+        """
+        chunks = ingest_policy_pdf(pdf_path)
+
+        if not chunks:
+            return 0
+
+        # Prepare data for ChromaDB
+        ids = [c["id"] for c in chunks]
+        documents = [c["text"] for c in chunks]
+        metadatas = [c["metadata"] for c in chunks]
+
+        # Add to collection (upsert to handle re-indexing)
+        self._collection.upsert(
+            ids=ids,
+            documents=documents,
+            metadatas=metadatas,
+        )
+
+        print(f"  [PolicyRetriever] Indexed {len(chunks)} chunks from {pdf_path}")
         return len(chunks)
 
     def retrieve(

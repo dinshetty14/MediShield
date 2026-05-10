@@ -1,6 +1,7 @@
 """Base agent class with LLM integration and retry logic."""
 
 import base64
+import io
 import time
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -9,6 +10,43 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.config import get_settings
+
+
+# Supported media types for Gemini vision
+MEDIA_TYPE_MAP = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".webp": "image/webp",
+    ".gif": "image/gif",
+    ".pdf": "application/pdf",  # Gemini native PDF support
+    ".tif": "image/png",  # Convert TIFF to PNG
+    ".tiff": "image/png",  # Convert TIFF to PNG
+}
+
+
+def convert_tiff_to_png(tiff_bytes: bytes) -> bytes:
+    """Convert TIFF image to PNG format.
+
+    Args:
+        tiff_bytes: Raw TIFF image bytes
+
+    Returns:
+        PNG image bytes
+    """
+    try:
+        from PIL import Image
+
+        img = Image.open(io.BytesIO(tiff_bytes))
+        # Convert to RGB if needed (TIFF can have various modes)
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGB")
+
+        output = io.BytesIO()
+        img.save(output, format="PNG")
+        return output.getvalue()
+    except ImportError:
+        raise ImportError("Pillow is required for TIFF support. Install with: pip install Pillow")
 
 
 class BaseAgent(ABC):
@@ -67,14 +105,11 @@ class BaseAgent(ABC):
             path = Path(image_source)
             image_bytes = path.read_bytes()
             suffix = path.suffix.lower()
-            media_type_map = {
-                ".png": "image/png",
-                ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg",
-                ".gif": "image/gif",
-                ".webp": "image/webp",
-            }
-            media_type = media_type_map.get(suffix, "image/png")
+            media_type = MEDIA_TYPE_MAP.get(suffix, "image/png")
+
+            # Convert TIFF to PNG
+            if suffix in (".tif", ".tiff"):
+                image_bytes = convert_tiff_to_png(image_bytes)
 
         base64_data = base64.standard_b64encode(image_bytes).decode("utf-8")
         return base64_data, media_type
@@ -84,38 +119,38 @@ class BaseAgent(ABC):
         image_source: bytes | str | Path,
         prompt: str,
     ) -> str:
-        """Call the vision LLM with an image and prompt.
+        """Call the vision LLM with an image/PDF and prompt.
+
+        Supports: PNG, JPEG, WebP, GIF, PDF (native), TIFF (converted to PNG)
 
         Args:
-            image_source: Image bytes, file path, or Path object
-            prompt: Text prompt to send with the image
+            image_source: Image/PDF bytes, file path, or Path object
+            prompt: Text prompt to send with the document
 
         Returns:
             The LLM's text response
         """
         from google.genai import types
 
-        # Get image bytes and media type
+        # Get file bytes and media type
         if isinstance(image_source, bytes):
-            image_bytes = image_source
+            file_bytes = image_source
             media_type = "image/png"
         else:
             path = Path(image_source)
-            image_bytes = path.read_bytes()
+            file_bytes = path.read_bytes()
             suffix = path.suffix.lower()
-            media_type_map = {
-                ".png": "image/png",
-                ".jpg": "image/jpeg",
-                ".jpeg": "image/jpeg",
-                ".webp": "image/webp",
-                ".gif": "image/gif",
-            }
-            media_type = media_type_map.get(suffix, "image/png")
+            media_type = MEDIA_TYPE_MAP.get(suffix, "image/png")
+
+            # Convert TIFF to PNG
+            if suffix in (".tif", ".tiff"):
+                file_bytes = convert_tiff_to_png(file_bytes)
+                print(f"  [LLM] Converted TIFF to PNG for processing")
 
         response = self._client.models.generate_content(
             model=self.model_name,
             contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type=media_type),
+                types.Part.from_bytes(data=file_bytes, mime_type=media_type),
                 types.Part.from_text(text=prompt),
             ],
         )

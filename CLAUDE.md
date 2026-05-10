@@ -10,19 +10,33 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Architecture
 
-Multi-agent pipeline orchestrated via **LangGraph**:
+Multi-agent pipeline orchestrated via **LangGraph** with conditional routing:
 
 ```
-RECEIVED → CLASSIFIED → [PARALLEL: KYC + CLAIMS + POLICY] → FRAUD_CHECK → AGGREGATED → DECIDED
+RECEIVED → CLASSIFIED → [Route by Doc Type]
+  - KYC Documents:    KYC → FRAUD → ORCHESTRATOR → DECIDED
+  - Policy Documents: POLICY_INGESTION → END (Docling + ChromaDB)
+  - Bills/Claims/etc: CLAIMS → POLICY → FRAUD → ORCHESTRATOR → DECIDED
+  - Unknown:          ORCHESTRATOR → DECIDED
 ```
 
 **Agents:**
-- **Classifier** — vision LLM identifies document type
+- **Classifier** — regex → OCR → vision LLM (fallback strategy)
 - **KYC** — validates identity documents, checks expiry, detects tampering
-- **Claims** — extracts ICD-10/CPT codes, amounts, provider details
-- **Policy** — RAG over policy PDFs (Docling + ChromaDB/Qdrant)
-- **Fraud Detection** — analyzes patient history, scores fraud risk
+- **Claims** — OCR + regex extraction → vision LLM fallback
+- **Policy** — RAG over indexed policy PDFs (ChromaDB)
+- **Policy Ingestion** — Docling PDF parsing → ChromaDB storage
+- **Fraud Detection** — rule-based (duplicates, frequency, amount anomalies)
 - **Orchestrator** — aggregates outputs, makes final decision with confidence
+
+## Supported File Formats
+
+| Format | Support |
+|--------|---------|
+| PNG, JPEG | Full support |
+| PDF | Native Gemini support |
+| TIFF | Converted to PNG |
+| WebP, GIF | Full support |
 
 **Decision Logic:**
 - `APPROVE`: KYC passed + claim valid + covered + fraud score < 0.3
@@ -74,6 +88,7 @@ Classify into exactly these categories (case-insensitive):
 - KYC Documents
 - Medical Reports
 - Prescriptions
+- Policy Documents (insurance policy PDFs for RAG ingestion)
 - Unknown
 
 **Routing:**
@@ -84,6 +99,7 @@ Classify into exactly these categories (case-insensitive):
 | KYC Documents | `verification_queue` |
 | Medical Reports | `medical_review_queue` |
 | Prescriptions | `medical_review_queue` |
+| Policy Documents | `policy_ingestion_queue` |
 | Unknown | `manual_review_queue` |
 
 ## Rate Limiting

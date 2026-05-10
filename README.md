@@ -21,14 +21,11 @@ uv sync --native-tls
 ### 2. Run Evaluation
 
 ```bash
-# Standard pipeline (uses LLM for all agents)
+# Evaluate pipeline on test dataset
 uv run python scripts/evaluate.py --limit 5
-
-# Fast pipeline (OCR-first, minimal LLM calls)
-uv run python scripts/evaluate_fast.py --limit 5
 ```
 
-### 3. Start Backend (Optional)
+### 3. Start Backend
 
 ```bash
 uv run uvicorn app.main:app --reload
@@ -38,7 +35,7 @@ API available at http://localhost:8000
 - Swagger UI: http://localhost:8000/docs
 - Health check: http://localhost:8000/api/health
 
-### 4. Start Frontend (Optional)
+### 4. Start Frontend
 
 ```bash
 cd frontend
@@ -51,34 +48,33 @@ UI available at http://localhost:3000
 ## Architecture
 
 ```
-RECEIVED → CLASSIFIED → [KYC|CLAIMS] → POLICY → FRAUD → ORCHESTRATOR → DECIDED
+RECEIVED → CLASSIFIED → [Route by Doc Type] → ...
+  - KYC Documents:    KYC → FRAUD → ORCHESTRATOR → DECIDED
+  - Policy Documents: POLICY_INGESTION → END (stored in ChromaDB)
+  - Bills/Claims/etc: CLAIMS → POLICY → FRAUD → ORCHESTRATOR → DECIDED
+  - Unknown:          ORCHESTRATOR → DECIDED
 ```
 
 **Agents:**
-| Agent | Standard Pipeline | Fast Pipeline |
-|-------|-------------------|---------------|
-| Classifier | Vision LLM | Filename regex + OCR + LLM fallback |
-| KYC | Vision LLM | Vision LLM |
-| Claims | Vision LLM | EasyOCR + regex extraction |
-| Policy | RAG over policy PDFs | RAG (skips if no policies) |
-| Fraud | LLM analysis | Rule-based detection |
-| Orchestrator | Aggregates decisions | Aggregates decisions |
+| Agent | Strategy |
+|-------|----------|
+| Classifier | Filename regex → OCR keywords → LLM fallback |
+| KYC | Vision LLM |
+| Claims | OCR + regex extraction → LLM fallback |
+| Policy | RAG over policy PDFs (checks coverage) |
+| Policy Ingestion | Docling PDF parsing → ChromaDB storage |
+| Fraud | Rule-based detection (duplicates, frequency, amount anomalies) |
+| Orchestrator | Aggregates decisions |
 
-## Performance Comparison
+## Optimizations
 
-| Metric | Standard Pipeline | Fast Pipeline |
-|--------|-------------------|---------------|
-| LLM calls per doc | 3-4 | 0-1 (for filename-matched docs) |
-| Time per doc | ~20s | ~6-7s |
-| Classification accuracy | 100% | 100% |
-| Decision accuracy | 100% | 100% |
-
-## Optimizations (Fast Pipeline)
+The pipeline uses a smart fallback strategy to minimize LLM calls:
 
 1. **Filename Pattern Matching** - Instant classification for files like `bill_*.png`
 2. **EasyOCR Extraction** - Extract amounts, dates without LLM
 3. **Rule-based Fraud Detection** - Check duplicates, frequency anomalies without LLM
 4. **Cached OCR Reader** - Initialize once, reuse for all documents
+5. **LLM Fallback** - Only called when regex/OCR cannot classify or extract
 
 ## API Endpoints
 
@@ -97,30 +93,27 @@ RECEIVED → CLASSIFIED → [KYC|CLAIMS] → POLICY → FRAUD → ORCHESTRATOR �
 MediShield/
 ├── app/
 │   ├── agents/
-│   │   ├── classifier.py      # LLM-based classifier
-│   │   ├── fast_classifier.py # Filename + OCR classifier
-│   │   ├── claims.py          # LLM-based extraction
-│   │   ├── fast_claims.py     # OCR-based extraction
-│   │   ├── fraud.py           # LLM-based fraud detection
-│   │   ├── rule_fraud.py      # Rule-based fraud detection
-│   │   ├── kyc.py             # KYC validation
-│   │   ├── policy.py          # Policy RAG agent
-│   │   └── orchestrator.py    # Final decision maker
+│   │   ├── base.py           # Base agent with LLM integration
+│   │   ├── classifier.py     # Regex → OCR → LLM classifier
+│   │   ├── claims.py         # OCR → LLM claims extraction
+│   │   ├── fraud.py          # Rule-based fraud detection
+│   │   ├── kyc.py            # KYC validation
+│   │   ├── policy.py         # Policy RAG agent
+│   │   └── orchestrator.py   # Final decision maker
 │   ├── pipeline/
-│   │   ├── graph.py           # Standard LangGraph pipeline
-│   │   └── fast_graph.py      # Optimized pipeline
-│   ├── api/                   # FastAPI routes
-│   ├── db/                    # SQLAlchemy models
-│   ├── models/                # Pydantic schemas
-│   ├── rag/                   # Policy document retrieval
-│   └── main.py                # FastAPI app
-├── frontend/                  # Next.js UI
-├── dataset/                   # Test images
-├── policies/                  # Policy PDFs for RAG
-├── tests/                     # Pytest tests
+│   │   ├── graph.py          # LangGraph pipeline
+│   │   └── state.py          # Pipeline state definition
+│   ├── api/                  # FastAPI routes
+│   ├── db/                   # SQLAlchemy models
+│   ├── models/               # Pydantic schemas
+│   ├── rag/                  # Policy document retrieval
+│   └── main.py               # FastAPI app
+├── frontend/                 # Next.js UI
+├── dataset/                  # Test images
+├── policies/                 # Policy PDFs for RAG
+├── tests/                    # Pytest tests
 └── scripts/
-    ├── evaluate.py            # Standard evaluation
-    └── evaluate_fast.py       # Fast evaluation
+    └── evaluate.py           # Pipeline evaluation
 ```
 
 ## Testing
@@ -129,18 +122,25 @@ MediShield/
 # Run unit tests
 uv run python -m pytest tests/ -v
 
-# Standard evaluation
+# Evaluate on test dataset
 uv run python scripts/evaluate.py --limit 5
 
-# Fast evaluation (recommended)
-uv run python scripts/evaluate_fast.py --limit 5
+# Test policy flow
+uv run python scripts/test_policy_flow.py
 ```
 
 ## Decision Logic
 
 - **APPROVE**: KYC passed + claim valid + covered + fraud score < 0.3
 - **REJECT**: KYC failed OR not covered OR invalid schema
-- **ESCALATE**: fraud score ≥ 0.3 OR any confidence < 0.6
+- **ESCALATE**: fraud score >= 0.3 OR any confidence < 0.6 OR duplicate detected
+
+## Fraud Detection
+
+The fraud agent detects:
+- **Duplicate claims** - Same amount submitted within 24 hours
+- **Frequency anomaly** - More than 5 claims in 30 days
+- **Amount anomaly** - Claim > 2x historical average
 
 ## Environment Variables
 
@@ -150,6 +150,17 @@ uv run python scripts/evaluate_fast.py --limit 5
 | `DATABASE_URL` | SQLite/PostgreSQL URL (default: sqlite:///./medishield.db) |
 | `CHROMA_PERSIST_DIR` | Vector store path (default: ./chroma_db) |
 
+## Supported File Formats
+
+| Format | Support |
+|--------|---------|
+| PNG | Full support |
+| JPEG/JPG | Full support |
+| PDF | Native Gemini support |
+| TIFF | Converted to PNG |
+| WebP | Full support |
+| GIF | Full support |
+
 ## Document Categories
 
 - Patient Bills
@@ -157,4 +168,32 @@ uv run python scripts/evaluate_fast.py --limit 5
 - KYC Documents
 - Medical Reports
 - Prescriptions
+- Policy Documents (ingested to ChromaDB for RAG)
 - Unknown
+
+## Policy RAG Setup
+
+```bash
+# Create sample policy PDF
+uv run python scripts/create_sample_policy.py
+
+# Index policies via API
+curl -X POST http://localhost:8000/api/policies/index
+
+# Or via Python
+uv run python -c "from app.agents.policy import PolicyAgent; print(PolicyAgent().index_policies())"
+```
+
+## Reset Database
+
+```bash
+# Stop server, then delete data
+rm medishield.db
+rm -rf chroma_db
+
+# Restart server
+uv run uvicorn app.main:app
+
+# Re-index policies
+curl -X POST http://localhost:8000/api/policies/index
+```

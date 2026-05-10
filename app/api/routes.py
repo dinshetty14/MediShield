@@ -56,7 +56,11 @@ async def create_case(
     5. Final decision
     """
     # Validate file type
-    allowed_types = {"image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif", "application/pdf"}
+    allowed_types = {
+        "image/png", "image/jpeg", "image/jpg", "image/webp", "image/gif",
+        "application/pdf",  # Native Gemini PDF support
+        "image/tiff", "image/tif",  # TIFF (converted to PNG)
+    }
     if file.content_type not in allowed_types:
         raise HTTPException(
             status_code=400,

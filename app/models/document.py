@@ -15,6 +15,7 @@ class DocType(str, Enum):
     KYC_DOCUMENT = "KYC Documents"
     MEDICAL_REPORT = "Medical Reports"
     PRESCRIPTION = "Prescriptions"
+    POLICY_DOCUMENT = "Policy Documents"  # Insurance policy PDFs for RAG ingestion
     UNKNOWN = "Unknown"
 
     @classmethod

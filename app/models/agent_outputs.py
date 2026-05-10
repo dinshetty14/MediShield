@@ -85,3 +85,12 @@ class FraudOutput(AgentOutput):
     duplicate_claim_detected: bool = False
     frequency_anomaly: bool = False
     provider_pattern_flag: bool = False
+
+
+class PolicyIngestionOutput(AgentOutput):
+    """Output from Policy Document ingestion."""
+
+    agent_name: str = "policy_ingestion"
+    chunks_indexed: int = 0
+    policy_name: str | None = None
+    ingestion_successful: bool = False

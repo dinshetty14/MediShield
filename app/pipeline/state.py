@@ -7,6 +7,7 @@ from app.models.agent_outputs import (
     ClassifierOutput,
     FraudOutput,
     KYCOutput,
+    PolicyIngestionOutput,
     PolicyOutput,
 )
 from app.models.decisions import FinalDecision
@@ -33,6 +34,7 @@ class PipelineState(TypedDict, total=False):
     claims_output: ClaimsOutput | None
     policy_output: PolicyOutput | None
     fraud_output: FraudOutput | None
+    policy_ingestion_output: PolicyIngestionOutput | None
 
     # Final decision
     final_decision: FinalDecision | None
