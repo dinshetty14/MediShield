@@ -5,6 +5,7 @@ from pathlib import Path
 from docling.document_converter import DocumentConverter
 
 from app.config import get_settings
+from app.rag.cpt_mapping import detect_categories_in_text
 
 
 def ingest_policy_pdf(pdf_path: str | Path) -> list[dict]:
@@ -34,6 +35,9 @@ def ingest_policy_pdf(pdf_path: str | Path) -> list[dict]:
 
     for i, section in enumerate(sections):
         if section["text"].strip():
+            # Auto-detect coverage categories from chunk text
+            categories = detect_categories_in_text(section["text"])
+
             chunks.append({
                 "id": f"{pdf_path.stem}_chunk_{i}",
                 "text": section["text"],
@@ -42,6 +46,7 @@ def ingest_policy_pdf(pdf_path: str | Path) -> list[dict]:
                     "section": section.get("heading", f"Section {i}"),
                     "chunk_index": i,
                     "policy_name": pdf_path.stem,
+                    "categories": ",".join(categories) if categories else "general",
                 },
             })
 

@@ -56,15 +56,22 @@ class PolicyAgent(BaseAgent):
         icd_codes: list[str] | None = None,
         cpt_codes: list[str] | None = None,
         diagnosis: str | None = None,
+        procedure_description: str | None = None,
         claim_amount: float | None = None,
     ) -> PolicyOutput:
         """Check policy coverage for a claim.
 
+        Approach (per assignment clarification):
+        1. Use CPT/ICD codes for metadata filtering (map to coverage categories)
+        2. Semantic search on diagnosis/procedure description (NOT on codes)
+        3. LLM analyzes retrieved clauses to determine coverage
+
         Args:
             claims_output: Output from ClaimsAgent (preferred)
-            icd_codes: ICD-10 codes (alternative to claims_output)
-            cpt_codes: CPT codes (alternative to claims_output)
-            diagnosis: Diagnosis description
+            icd_codes: ICD-10 codes (for category filtering)
+            cpt_codes: CPT codes (for category filtering)
+            diagnosis: Diagnosis description (for semantic search)
+            procedure_description: Procedure description (for semantic search)
             claim_amount: Claim amount for coverage calculation
 
         Returns:
@@ -78,6 +85,9 @@ class PolicyAgent(BaseAgent):
             cpt_codes = claims_output.cpt_codes
             diagnosis = claims_output.diagnosis
             claim_amount = claims_output.claim_amount
+            # Provider name can serve as additional context
+            if claims_output.provider_name and not procedure_description:
+                procedure_description = f"Treatment at {claims_output.provider_name}"
 
         # If no diagnosis codes available (e.g., patient bills without ICD/CPT),
         # default to covered since we can't verify against policy
@@ -94,11 +104,14 @@ class PolicyAgent(BaseAgent):
             )
 
         try:
-            # Retrieve relevant policy clauses
+            # Retrieve relevant policy clauses using new approach:
+            # - CPT/ICD codes mapped to categories for filtering
+            # - Semantic search on diagnosis/procedure description
             clauses = self._retriever.retrieve_for_codes(
                 icd_codes=icd_codes or [],
                 cpt_codes=cpt_codes or [],
                 diagnosis=diagnosis,
+                procedure_description=procedure_description,
                 n_results=5,
             )
 

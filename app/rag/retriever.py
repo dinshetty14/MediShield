@@ -8,6 +8,7 @@ from chromadb.config import Settings as ChromaSettings
 from app.config import get_settings
 from app.models.agent_outputs import PolicyClause
 
+from .cpt_mapping import get_categories_for_codes
 from .ingestion import ingest_all_policies, ingest_policy_pdf
 
 
@@ -91,20 +92,42 @@ class PolicyRetriever:
         query: str,
         n_results: int = 5,
         filter_policy: str | None = None,
+        filter_categories: list[str] | None = None,
     ) -> list[PolicyClause]:
         """Retrieve relevant policy clauses.
 
         Args:
-            query: Search query (e.g., procedure description or CPT codes)
+            query: Semantic search query (diagnosis description, procedure name)
             n_results: Number of results to return
             filter_policy: Optional policy name to filter by
+            filter_categories: Optional list of coverage categories to filter by
 
         Returns:
             List of PolicyClause objects
         """
+        # Build where filter for metadata
         where_filter = None
+        where_conditions = []
+
         if filter_policy:
-            where_filter = {"policy_name": filter_policy}
+            where_conditions.append({"policy_name": filter_policy})
+
+        if filter_categories:
+            # Filter chunks that contain any of the specified categories
+            # Categories are stored as comma-separated string in metadata
+            category_filters = [
+                {"categories": {"$contains": cat}}
+                for cat in filter_categories
+            ]
+            if len(category_filters) == 1:
+                where_conditions.append(category_filters[0])
+            elif len(category_filters) > 1:
+                where_conditions.append({"$or": category_filters})
+
+        if len(where_conditions) == 1:
+            where_filter = where_conditions[0]
+        elif len(where_conditions) > 1:
+            where_filter = {"$and": where_conditions}
 
         results = self._collection.query(
             query_texts=[query],
@@ -135,36 +158,53 @@ class PolicyRetriever:
         icd_codes: list[str],
         cpt_codes: list[str],
         diagnosis: str | None = None,
+        procedure_description: str | None = None,
         n_results: int = 5,
     ) -> list[PolicyClause]:
         """Retrieve policy clauses relevant to medical codes.
 
+        Approach (per assignment clarification):
+        1. Map CPT/ICD codes to coverage categories (metadata filter)
+        2. Semantic search on diagnosis/procedure description (not codes)
+
         Args:
-            icd_codes: List of ICD-10 diagnosis codes
-            cpt_codes: List of CPT procedure codes
-            diagnosis: Optional diagnosis description
+            icd_codes: List of ICD-10 diagnosis codes (for category mapping)
+            cpt_codes: List of CPT procedure codes (for category mapping)
+            diagnosis: Diagnosis description (for semantic search)
+            procedure_description: Procedure description (for semantic search)
             n_results: Number of results to return
 
         Returns:
             List of PolicyClause objects
         """
-        # Build search query from codes and diagnosis
+        # Step 1: Map codes to coverage categories for metadata filtering
+        categories = get_categories_for_codes(cpt_codes, icd_codes)
+
+        if categories:
+            print(f"  [PolicyRetriever] Filtering by categories: {categories}")
+
+        # Step 2: Build semantic search query from description (NOT codes)
         query_parts = []
 
         if diagnosis:
             query_parts.append(diagnosis)
 
-        if icd_codes:
-            query_parts.append(f"ICD-10 codes: {', '.join(icd_codes)}")
+        if procedure_description:
+            query_parts.append(procedure_description)
 
-        if cpt_codes:
-            query_parts.append(f"CPT codes: {', '.join(cpt_codes)}")
-
+        # If no description available, use a generic query
         if not query_parts:
-            query_parts.append("medical procedure coverage policy")
+            query_parts.append("medical procedure coverage benefits policy")
 
         query = " ".join(query_parts)
-        return self.retrieve(query, n_results)
+        print(f"  [PolicyRetriever] Semantic query: {query[:80]}...")
+
+        # Step 3: Retrieve with category filter + semantic search
+        return self.retrieve(
+            query=query,
+            n_results=n_results,
+            filter_categories=categories if categories else None,
+        )
 
     def get_collection_count(self) -> int:
         """Return the number of documents in the collection."""
