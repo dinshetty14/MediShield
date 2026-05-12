@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Case } from "@/lib/api";
+import { Case, getCaseReportUrl } from "@/lib/api";
 import StatusBadge from "./StatusBadge";
 
 interface CaseTableProps {
@@ -45,6 +45,9 @@ export default function CaseTable({ cases }: CaseTableProps) {
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
               Created
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              Report
             </th>
           </tr>
         </thead>
@@ -99,6 +102,18 @@ export default function CaseTable({ cases }: CaseTableProps) {
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                 {new Date(c.created_at).toLocaleDateString()}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                {c.decision && (
+                  <a
+                    href={getCaseReportUrl(c.id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-indigo-600 hover:text-indigo-900 font-medium"
+                  >
+                    PDF
+                  </a>
+                )}
               </td>
             </tr>
           ))}

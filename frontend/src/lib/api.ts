@@ -114,3 +114,35 @@ export async function overrideDecision(
 export function getCaseImageUrl(caseId: string): string {
   return `${API_BASE}/cases/${caseId}/image`;
 }
+
+export function getCaseReportUrl(caseId: string): string {
+  return `${API_BASE}/cases/${caseId}/report`;
+}
+
+export interface CalibrationBin {
+  bin_start: number;
+  bin_end: number;
+  count: number;
+  accuracy: number | null;
+  mean_confidence: number;
+}
+
+export interface CalibrationData {
+  predictions: Array<{
+    case_id: string;
+    confidence: number;
+    correct: boolean;
+    decision: string;
+  }>;
+  bins: CalibrationBin[];
+  ece: number | null;
+  overall_accuracy: number | null;
+  mean_confidence: number | null;
+  total_cases: number;
+}
+
+export async function fetchCalibrationData(): Promise<CalibrationData> {
+  const res = await fetch(`${API_BASE}/analytics/calibration`);
+  if (!res.ok) throw new Error("Failed to fetch calibration data");
+  return res.json();
+}

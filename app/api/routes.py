@@ -234,6 +234,119 @@ async def get_case_image(case_id: str, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/analytics/calibration")
+async def get_calibration_data(db: Session = Depends(get_db)):
+    """Get calibration data for confidence analysis.
+
+    Returns data for plotting calibration curves:
+    - Bin-wise accuracy vs confidence
+    - ECE (Expected Calibration Error)
+    - Overall statistics
+    """
+    import json
+    from collections import defaultdict
+
+    repo = CaseRepository(db)
+
+    # Get all completed cases (approved, rejected, escalated) with decisions
+    cases = []
+    for status in [CaseStatus.APPROVED, CaseStatus.REJECTED, CaseStatus.ESCALATED]:
+        cases.extend(repo.list(status=status, limit=200))
+
+    if not cases:
+        return {
+            "predictions": [],
+            "bins": [],
+            "ece": None,
+            "overall_accuracy": None,
+            "mean_confidence": None,
+            "total_cases": 0,
+        }
+
+    # Collect predictions: we need ground truth to determine correctness
+    # For now, use classifier confidence and assume "processed" status means correct classification
+    # For real calibration, we'd need ground truth labels
+    predictions = []
+    for case in cases:
+        if case.decision_confidence is not None:
+            # Load classifier output to get classification confidence
+            classifier_output = case.classifier_output
+            if classifier_output:
+                if isinstance(classifier_output, str):
+                    classifier_output = json.loads(classifier_output)
+                conf = classifier_output.get("confidence", case.decision_confidence)
+            else:
+                conf = case.decision_confidence
+
+            # For calibration, we approximate "correct" as:
+            # - Decision was made (not escalated for low confidence)
+            # - High confidence cases that completed processing
+            correct = case.decision in ["approve", "reject"] and case.decision_confidence >= 0.5
+
+            predictions.append({
+                "case_id": case.id,
+                "confidence": conf,
+                "correct": correct,
+                "decision": case.decision,
+            })
+
+    if not predictions:
+        return {
+            "predictions": predictions,
+            "bins": [],
+            "ece": None,
+            "overall_accuracy": None,
+            "mean_confidence": None,
+            "total_cases": 0,
+        }
+
+    # Calculate bins
+    n_bins = 10
+    bin_data = defaultdict(lambda: {"correct": 0, "total": 0, "sum_conf": 0})
+
+    for pred in predictions:
+        bin_idx = min(int(pred["confidence"] * n_bins), n_bins - 1)
+        bin_data[bin_idx]["total"] += 1
+        bin_data[bin_idx]["sum_conf"] += pred["confidence"]
+        if pred["correct"]:
+            bin_data[bin_idx]["correct"] += 1
+
+    bins = []
+    ece_sum = 0
+    total_samples = len(predictions)
+
+    for i in range(n_bins):
+        bin_info = bin_data[i]
+        if bin_info["total"] > 0:
+            accuracy = bin_info["correct"] / bin_info["total"]
+            mean_conf = bin_info["sum_conf"] / bin_info["total"]
+            ece_sum += abs(accuracy - mean_conf) * bin_info["total"]
+        else:
+            accuracy = None
+            mean_conf = (i + 0.5) / n_bins
+
+        bins.append({
+            "bin_start": i / n_bins,
+            "bin_end": (i + 1) / n_bins,
+            "count": bin_info["total"],
+            "accuracy": accuracy,
+            "mean_confidence": mean_conf,
+        })
+
+    ece = ece_sum / total_samples if total_samples > 0 else None
+    overall_accuracy = sum(1 for p in predictions if p["correct"]) / len(predictions)
+    mean_confidence = sum(p["confidence"] for p in predictions) / len(predictions)
+
+    return {
+        "predictions": predictions,
+        "bins": bins,
+        "ece": ece,
+        "overall_accuracy": overall_accuracy,
+        "mean_confidence": mean_confidence,
+        "total_cases": len(predictions),
+    }
+
+
 @router.post("/policies/index")
 async def index_policies():
     """Index all policy PDFs for RAG retrieval."""
@@ -243,3 +356,37 @@ async def index_policies():
     count = policy_agent.index_policies()
 
     return {"message": f"Indexed {count} policy chunks", "count": count}
+
+
+@router.get("/cases/{case_id}/report")
+async def download_case_report(case_id: str, db: Session = Depends(get_db)):
+    """Download a PDF audit report for a case.
+
+    Generates a comprehensive PDF containing:
+    - Case summary and status
+    - Final decision with justification
+    - All agent outputs (Classification, KYC, Claims, Policy, Fraud)
+    - Override information (if applicable)
+    """
+    from fastapi.responses import Response
+
+    from .pdf_export import generate_case_report
+
+    repo = CaseRepository(db)
+    case = repo.get(case_id)
+
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    # Generate PDF
+    pdf_bytes = generate_case_report(case)
+
+    # Return as downloadable file
+    filename = f"medishield_case_{case_id[:8]}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        },
+    )

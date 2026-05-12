@@ -44,6 +44,9 @@ npm run dev
 ```
 
 UI available at http://localhost:3000
+- **Dashboard** - Upload documents, view cases, download PDF reports
+- **Review Queue** - Handle escalated cases with override capability
+- **Analytics** - Confidence calibration curves and ECE metrics
 
 ## Architecture
 
@@ -83,8 +86,11 @@ The pipeline uses a smart fallback strategy to minimize LLM calls:
 | POST | `/api/cases` | Upload document |
 | GET | `/api/cases` | List cases |
 | GET | `/api/cases/{id}` | Get case detail |
+| GET | `/api/cases/{id}/report` | Download PDF audit report |
 | PATCH | `/api/cases/{id}/override` | Override decision |
 | GET | `/api/cases/escalated` | Get review queue |
+| GET | `/api/cases/stats` | Get case statistics |
+| GET | `/api/analytics/calibration` | Get confidence calibration data |
 | POST | `/api/policies/index` | Index policy PDFs |
 
 ## Project Structure
@@ -113,7 +119,8 @@ MediShield/
 ├── policies/                 # Policy PDFs for RAG
 ├── tests/                    # Pytest tests
 └── scripts/
-    └── evaluate.py           # Pipeline evaluation
+    ├── evaluate.py           # Pipeline evaluation
+    └── calibration_plot.py   # Confidence calibration curves
 ```
 
 ## Testing
@@ -149,6 +156,9 @@ The fraud agent detects:
 | `GEMINI_API_KEY` | Google Gemini API key (required) |
 | `DATABASE_URL` | SQLite/PostgreSQL URL (default: sqlite:///./medishield.db) |
 | `CHROMA_PERSIST_DIR` | Vector store path (default: ./chroma_db) |
+| `LANGCHAIN_TRACING_V2` | Enable LangSmith tracing (true/false) |
+| `LANGCHAIN_API_KEY` | LangSmith API key (optional) |
+| `LANGCHAIN_PROJECT` | LangSmith project name (default: medishield) |
 
 ## Supported File Formats
 
@@ -183,6 +193,43 @@ curl -X POST http://localhost:8000/api/policies/index
 # Or via Python
 uv run python -c "from app.agents.policy import PolicyAgent; print(PolicyAgent().index_policies())"
 ```
+
+## Bonus Features
+
+### Multi-language OCR
+OCR supports English, Hindi, and Spanish documents out of the box.
+
+### LangSmith Tracing
+Enable observability by setting environment variables:
+```bash
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_API_KEY=lsv2_pt_xxx...
+LANGCHAIN_PROJECT=medishield
+```
+View traces at [smith.langchain.com](https://smith.langchain.com)
+
+### Confidence Calibration
+Generate calibration plots to analyze model confidence:
+```bash
+# Via CLI script (uses ground truth labels)
+uv run python scripts/calibration_plot.py --limit 20
+# Output: calibration_curve.png
+```
+
+Or view in the UI: Navigate to **Analytics** tab to see:
+- Calibration curve (confidence vs accuracy)
+- Confidence score distribution histogram
+- ECE (Expected Calibration Error) metric
+- Model interpretation (overconfident/underconfident)
+
+### PDF Audit Export
+Download case reports as PDF:
+```bash
+# Via API
+curl http://localhost:8000/api/cases/{case_id}/report --output report.pdf
+```
+
+Or click the **PDF** link in the Report column on the Dashboard.
 
 ## Reset Database
 

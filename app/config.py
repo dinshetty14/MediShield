@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     # Vector Store
     chroma_persist_dir: str = "./chroma_db"
 
+    # LangSmith Tracing (optional)
+    langchain_tracing_v2: bool = False
+    langchain_api_key: str = ""
+    langchain_project: str = "medishield"
+
     # Model Configuration
     classifier_model: str = "claude-sonnet-4-20250514"
     vision_model: str = "claude-sonnet-4-20250514"

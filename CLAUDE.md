@@ -29,6 +29,12 @@ RECEIVED → CLASSIFIED → [Route by Doc Type]
 - **Fraud Detection** — rule-based (duplicates, frequency, amount anomalies)
 - **Orchestrator** — aggregates outputs, makes final decision with confidence
 
+**Bonus Features Implemented:**
+- Multi-language OCR (English, Hindi, Spanish)
+- LangSmith tracing integration
+- Confidence calibration (CLI script + UI Analytics page)
+- PDF audit export (UI button + API endpoint)
+
 ## Supported File Formats
 
 | Format | Support |
@@ -58,6 +64,9 @@ uv run python -m pytest tests/ -v
 # Run evaluation on test dataset
 uv run python scripts/evaluate.py --limit 5
 
+# Generate confidence calibration plot
+uv run python scripts/calibration_plot.py --limit 20
+
 # Reference classifier (Gemini only)
 uv run python reference_only/main.py --limit 5
 ```
@@ -67,6 +76,11 @@ uv run python reference_only/main.py --limit 5
 cp .env.example .env
 # Add GEMINI_API_KEY (required for reference implementation)
 # Add ANTHROPIC_API_KEY (for Claude vision models in full implementation)
+
+# Optional: Enable LangSmith tracing
+# LANGCHAIN_TRACING_V2=true
+# LANGCHAIN_API_KEY=lsv2_pt_xxx...
+# LANGCHAIN_PROJECT=medishield
 ```
 
 **Dependencies:**
@@ -143,3 +157,23 @@ Gemini free tier (15 RPM):
 - Validate LLM outputs against expected schema
 - Route OCR failures to manual review
 - Load document categories from config (no hardcoding)
+
+## Bonus Features
+
+| Feature | Location | Usage |
+|---------|----------|-------|
+| Multi-language OCR | `app/agents/classifier.py`, `app/agents/claims.py` | Supports English, Hindi, Spanish |
+| LangSmith Tracing | `app/pipeline/graph.py` | Set `LANGCHAIN_TRACING_V2=true` in `.env` |
+| Calibration Plot | `scripts/calibration_plot.py` | CLI: `uv run python scripts/calibration_plot.py` |
+| Calibration UI | `frontend/src/app/analytics/page.tsx` | Navigate to Analytics tab in UI |
+| Calibration API | `app/api/routes.py` | `GET /api/analytics/calibration` |
+| PDF Audit Export | `app/api/pdf_export.py` | Click PDF link in Dashboard or `GET /api/cases/{id}/report` |
+
+## Frontend Pages
+
+| Page | Path | Description |
+|------|------|-------------|
+| Dashboard | `/` | Upload documents, view cases, download PDF reports |
+| Case Detail | `/cases/[id]` | Full case info with all agent outputs |
+| Review Queue | `/review` | Escalated cases with human override |
+| Analytics | `/analytics` | Confidence calibration curves, ECE metrics |

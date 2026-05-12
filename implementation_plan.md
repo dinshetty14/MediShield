@@ -255,8 +255,13 @@ def build_pipeline() -> StateGraph:
 | POST | `/api/cases` | Upload document, create case |
 | GET | `/api/cases` | List cases (filterable) |
 | GET | `/api/cases/{id}` | Get case detail |
+| GET | `/api/cases/{id}/report` | Download PDF audit report |
+| GET | `/api/cases/{id}/image` | Get uploaded document image |
 | PATCH | `/api/cases/{id}/override` | Human override decision |
-| POST | `/api/policies` | Upload policy PDF |
+| GET | `/api/cases/escalated` | Get review queue |
+| GET | `/api/cases/stats` | Get case statistics |
+| GET | `/api/analytics/calibration` | Get calibration data for charts |
+| POST | `/api/policies/index` | Index policy PDFs for RAG |
 | GET | `/api/health` | Health check |
 
 ### 5.2 Case Upload Flow
@@ -286,17 +291,20 @@ async def create_case(file: UploadFile):
 ## Phase 6: Next.js Frontend
 
 ### 6.1 Pages
-- `/` — Dashboard with case list
-- `/cases/[id]` — Case detail view
-- `/review` — Human review queue (escalated only)
+- `/` — Dashboard with case list and PDF download links
+- `/cases/[id]` — Case detail view with all agent outputs
+- `/review` — Human review queue (escalated only) with override capability
+- `/analytics` — Confidence calibration curves, ECE metrics, accuracy stats
 
 ### 6.2 Components
-- `CaseTable` — Sortable, filterable case list
+- `CaseTable` — Sortable, filterable case list with PDF report links
 - `StatusBadge` — Processing/Approved/Rejected/Escalated
 - `DocumentViewer` — Image viewer with zoom/pan
 - `AgentOutputPanel` — Collapsible per-agent results
 - `DecisionPanel` — Final decision with justification
 - `OverrideForm` — Human override with comment
+- `CalibrationChart` — SVG calibration curve visualization
+- `StatCard` — Summary statistics display
 
 ---
 
@@ -357,3 +365,17 @@ Create ground-truth labels for 20+ documents:
 4. `app/models/agent_outputs.py` — Agent response types
 5. `app/agents/base.py` — Base agent with retry logic
 6. `app/agents/classifier.py` — First agent to implement
+
+---
+
+## Bonus Features (Implemented)
+
+| Feature | Files | Description |
+|---------|-------|-------------|
+| Multi-language OCR | `app/agents/classifier.py`, `app/agents/claims.py` | EasyOCR supports English, Hindi, Spanish |
+| LangSmith Tracing | `app/pipeline/graph.py` | Full observability of agent calls |
+| Calibration CLI | `scripts/calibration_plot.py` | Generate calibration curves with ground truth |
+| Calibration UI | `frontend/src/app/analytics/page.tsx` | Interactive calibration dashboard |
+| Calibration API | `app/api/routes.py` | `GET /api/analytics/calibration` endpoint |
+| PDF Audit Export | `app/api/pdf_export.py` | Generate PDF reports per case |
+| PDF Download UI | `frontend/src/components/CaseTable.tsx` | PDF link in Dashboard table |

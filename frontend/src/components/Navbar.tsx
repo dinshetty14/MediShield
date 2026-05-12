@@ -9,6 +9,7 @@ export default function Navbar() {
   const links = [
     { href: "/", label: "Dashboard" },
     { href: "/review", label: "Review Queue" },
+    { href: "/analytics", label: "Analytics" },
   ];
 
   return (

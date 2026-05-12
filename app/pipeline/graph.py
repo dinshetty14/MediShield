@@ -1,10 +1,21 @@
 """LangGraph pipeline for document processing with conditional routing."""
 
+import os
 import time
 from pathlib import Path
 from typing import Literal
 
 from langgraph.graph import END, StateGraph
+
+from app.config import get_settings
+
+# Enable LangSmith tracing if configured
+_settings = get_settings()
+if _settings.langchain_tracing_v2 and _settings.langchain_api_key:
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_API_KEY"] = _settings.langchain_api_key
+    os.environ["LANGCHAIN_PROJECT"] = _settings.langchain_project
+    print(f"  [Tracing] LangSmith enabled for project: {_settings.langchain_project}")
 
 from app.agents.claims import ClaimsAgent
 from app.agents.classifier import ClassifierAgent

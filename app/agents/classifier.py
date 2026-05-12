@@ -155,7 +155,8 @@ def _get_ocr_reader():
     if _ocr_reader is None:
         import easyocr
         print("  [OCR] Initializing EasyOCR reader (one-time)...")
-        _ocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+        # Multi-language support: English, Hindi, Spanish
+        _ocr_reader = easyocr.Reader(['en', 'hi', 'es'], gpu=False, verbose=False)
     return _ocr_reader
 
 
