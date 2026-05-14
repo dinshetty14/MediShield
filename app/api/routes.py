@@ -92,10 +92,20 @@ async def create_case(
     # Process through pipeline
     start_time = time.perf_counter()
     try:
+        # Save original filename for pattern matching, then process
+        # Use a temp path with original filename for classifier pattern matching
+        original_filename = file.filename or "unknown"
+        temp_path = UPLOAD_DIR / original_filename
+        temp_path.write_bytes(content)
+
         result = process_document(
-            image_bytes=content,
+            image_path=str(temp_path),
             case_id=case.id,
         )
+
+        # Clean up temp file if different from storage path
+        if str(temp_path) != str(storage_path) and temp_path.exists():
+            temp_path.unlink()
         processing_time = time.perf_counter() - start_time
 
         # Update case with results

@@ -66,63 +66,63 @@
     },
     {
       "filename": "03ac1d4117.png",
-      "expected_doc_type": "Unknown",
-      "expected_decision": "escalate",
-      "notes": "Needs manual classification verification"
+      "expected_doc_type": "Prescriptions",
+      "expected_decision": "approve",
+      "notes": "Prescription form with Rx medications and doctor signature"
     },
     {
       "filename": "05a5de87a2.png",
-      "expected_doc_type": "Unknown",
-      "expected_decision": "escalate",
-      "notes": "Needs manual classification verification"
+      "expected_doc_type": "Prescriptions",
+      "expected_decision": "approve",
+      "notes": "Prescription form with Rx medications and doctor signature"
     },
     {
       "filename": "0c205798ca.png",
-      "expected_doc_type": "Unknown",
-      "expected_decision": "escalate",
-      "notes": "Needs manual classification verification"
+      "expected_doc_type": "KYC Documents",
+      "expected_decision": "approve",
+      "notes": "Aadhaar card - Indian government ID"
     },
     {
       "filename": "139bb4f7b2.png",
-      "expected_doc_type": "Unknown",
-      "expected_decision": "escalate",
-      "notes": "Needs manual classification verification"
+      "expected_doc_type": "Medical Reports",
+      "expected_decision": "approve",
+      "notes": "Lab test results / pathology report"
     },
     {
       "filename": "1943d55a29.png",
-      "expected_doc_type": "Unknown",
-      "expected_decision": "escalate",
-      "notes": "Needs manual classification verification"
+      "expected_doc_type": "Medical Reports",
+      "expected_decision": "approve",
+      "notes": "Lab test results / pathology report"
     },
     {
       "filename": "1b9d9c79d7.png",
-      "expected_doc_type": "Unknown",
-      "expected_decision": "escalate",
-      "notes": "Needs manual classification verification"
+      "expected_doc_type": "Prescriptions",
+      "expected_decision": "approve",
+      "notes": "Prescription form with Rx medications and doctor signature"
     },
     {
       "filename": "1f27fb123a.png",
-      "expected_doc_type": "Unknown",
-      "expected_decision": "escalate",
-      "notes": "Needs manual classification verification"
+      "expected_doc_type": "Prescriptions",
+      "expected_decision": "approve",
+      "notes": "Prescription form with Rx medications and doctor signature"
     },
     {
       "filename": "2561b8be1b.png",
-      "expected_doc_type": "Unknown",
-      "expected_decision": "escalate",
-      "notes": "Needs manual classification verification"
+      "expected_doc_type": "KYC Documents",
+      "expected_decision": "approve",
+      "notes": "Aadhaar card - Indian government ID"
     },
     {
       "filename": "scanned_012389984.png",
-      "expected_doc_type": "Unknown",
-      "expected_decision": "escalate",
-      "notes": "Scanned document - type TBD"
+      "expected_doc_type": "Claim Forms",
+      "expected_decision": "approve",
+      "notes": "Insurance claim form with patient details"
     },
     {
       "filename": "31d1b528ee.png",
-      "expected_doc_type": "Unknown",
-      "expected_decision": "escalate",
-      "notes": "Needs manual classification verification"
+      "expected_doc_type": "KYC Documents",
+      "expected_decision": "approve",
+      "notes": "Aadhaar card - Indian government ID"
     }
   ]
 }

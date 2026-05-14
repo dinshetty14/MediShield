@@ -50,6 +50,8 @@ UI available at http://localhost:3000
 
 ## Architecture
 
+![MediShield Architecture Diagram](MediShield-Architecture-Diagram.png)
+
 ```
 RECEIVED → CLASSIFIED → [Route by Doc Type] → ...
   - KYC Documents:    KYC → FRAUD → ORCHESTRATOR → DECIDED

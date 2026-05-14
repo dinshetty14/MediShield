@@ -108,6 +108,21 @@ class CaseRepository:
         if fraud_out:
             case.fraud_output = fraud_out.model_dump(mode="json")
 
+        # Handle policy ingestion (goes directly to END, no orchestrator decision)
+        policy_ingestion_out = pipeline_state.get("policy_ingestion_output")
+        if policy_ingestion_out:
+            case.policy_output = policy_ingestion_out.model_dump(mode="json")
+            if policy_ingestion_out.ingestion_successful:
+                case.status = CaseStatus.APPROVED.value
+                case.decision = "approve"
+                case.decision_confidence = policy_ingestion_out.confidence
+                case.decision_justification = f"Policy document indexed successfully: {policy_ingestion_out.chunks_indexed} chunks"
+            else:
+                case.status = CaseStatus.ESCALATED.value
+                case.decision = "escalate"
+                case.decision_confidence = 0.0
+                case.decision_justification = f"Policy ingestion failed: {', '.join(policy_ingestion_out.errors or [])}"
+
         # Update decision
         final_decision: FinalDecision | None = pipeline_state.get("final_decision")
         if final_decision:

@@ -47,7 +47,7 @@ FILENAME_PATTERNS = {
         r"rx[_\-]",
     ],
     DocType.POLICY_DOCUMENT: [
-        r"policy[_\-]",
+        r"policy",  # Match "policy" anywhere in filename
         r"insurance[_\-]?policy",
         r"coverage",
         r"terms[_\-]?and[_\-]?conditions",
