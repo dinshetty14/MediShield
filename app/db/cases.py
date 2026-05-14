@@ -163,7 +163,8 @@ class CaseRepository:
         case.override_decision = new_decision
         case.override_timestamp = datetime.utcnow()
 
-        # Update status based on override
+        # Update both decision and status based on override
+        case.decision = new_decision  # Update the main decision field
         status_map = {
             "approve": CaseStatus.APPROVED,
             "reject": CaseStatus.REJECTED,
